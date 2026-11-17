@@ -1,0 +1,20 @@
+# Dependencias
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Cachés y pruebas
+.pytest_cache/
+.coverage
+
+# Entornos virtuales y archivos locales
+.venv/
+venv/
+env/
+
+# Control de versiones y editor
+.git/
+.gitignore
+
+# No aporta al runtime de la app
+tests/

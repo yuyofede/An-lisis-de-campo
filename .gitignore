@@ -1,0 +1,13 @@
+# Entorno virtual y cachés de Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Configuración local de Streamlit (secretos, etc.)
+.streamlit/secrets.toml
+
+# Archivos del sistema
+.DS_Store
