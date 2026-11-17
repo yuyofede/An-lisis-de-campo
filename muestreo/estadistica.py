@@ -336,6 +336,78 @@ class ComparacionMuestras:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class ResultadoEstimacion:
+    """Estimación puntual de una proporción y su intervalo de confianza."""
+
+    n: int
+    exitos: int
+    proporcion: float
+    error: float
+    z: float
+    nivel_confianza: float
+    intervalo_inferior: float
+    intervalo_superior: float
+    poblacion: Optional[int]
+
+    def como_dict(self) -> Dict[str, object]:
+        return asdict(self)
+
+
+def estimar_proporcion(
+    n: int,
+    exitos: int,
+    poblacion: Optional[int] = None,
+    confianza: float = 0.95,
+    z: Optional[float] = None,
+) -> ResultadoEstimacion:
+    """Estima una proporción a partir de datos binarios y construye su intervalo.
+
+    Parámetros
+    ----------
+    n:
+        Tamaño de la muestra efectiva (n) con informados.
+    exitos:
+        Cantidad de casos exitosos (proporción de 1) en la muestra.
+    poblacion:
+        Tamaño de población N para aplicar la corrección por población finita.
+    confianza:
+        Nivel de confianza (0.90, 0.95, 0.99...).
+    z:
+        Valor crítico. Si se entrega se ignora ``confianza`` (se deriva).
+
+    Returns
+    -------
+    ResultadoEstimacion
+        Contiene la estimación puntual ``proporcion = exitos / n``, el margen
+        ``error``, y el intervalo ``[intervalo_inferior, intervalo_superior]``
+        con forma ``[p − e, p + e]`` (limitado a 0 y 1).
+    """
+    n = _validar_muestra(n)
+    exitos = max(0, min(int(exitos), int(n)))
+    confianza = float(confianza)
+    z_val = float(z) if z is not None else z_para_confianza(confianza)
+    if z_val <= 0:
+        raise ValueError("El valor z debe ser positivo.")
+
+    proporcion = exitos / n if n > 0 else 0.0
+    error = margen_error(
+        muestra=n, poblacion=poblacion, confianza=confianza, z=z_val, p=proporcion
+    )
+
+    return ResultadoEstimacion(
+        n=n,
+        exitos=exitos,
+        proporcion=proporcion,
+        error=error,
+        z=z_val,
+        nivel_confianza=confianza,
+        intervalo_inferior=max(0.0, proporcion - error),
+        intervalo_superior=min(1.0, proporcion + error),
+        poblacion=poblacion,
+    )
+
+
 def comparar_muestras(
     muestra_planeada: float,
     muestra_real: float,

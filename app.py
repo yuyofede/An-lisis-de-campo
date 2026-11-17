@@ -19,6 +19,7 @@ import streamlit as st
 from muestreo import datos as D
 from muestreo import estadistica as E
 from muestreo import graficos as G
+from muestreo import i18n
 from muestreo import muestreo as M
 
 # ---------------------------------------------------------------------------
@@ -79,6 +80,7 @@ CLAVES_DEPENDIENTES_BASE = [
     "t4_semilla",
     "t5_variable",
     "t5_nombre",
+    "t5_estimacion",
 ]
 
 
@@ -208,20 +210,27 @@ def encabezado() -> None:
 # ---------------------------------------------------------------------------
 def barra_lateral() -> None:
     with st.sidebar:
-        st.markdown("### Panel del estudio")
+        idioma_selector = st.selectbox(
+            "Idioma",
+            list(i18n.ETIQUETAS_IDIOMA.keys()),
+            format_func=lambda codigo: i18n.ETIQUETAS_IDIOMA[codigo],
+            key="idioma_selector",
+        )
+        i18n.set_idioma(idioma_selector)
+        st.markdown(f"### {i18n.t('panel')}")
         df = st.session_state.get("df")
         if df is not None:
-            st.markdown(f"**Base:** `{st.session_state.get('df_nombre')}`")
+            st.markdown(f"**{i18n.t('base')}:** `{st.session_state.get('df_nombre')}`")
             c1, c2 = st.columns(2)
             c1.metric("Registros", _entero(len(df)))
             c2.metric("Variables", _entero(len(df.columns)))
         else:
-            st.caption("Aún no hay una base de datos cargada.")
+            st.caption(i18n.t("sin_base"))
 
         diseno = st.session_state.get("diseno")
         if diseno:
             st.divider()
-            st.markdown("**Diseño vigente**")
+            st.markdown(f"**{i18n.t('diseno_vigente')}**")
             st.write(
                 f"Población: **{_entero(diseno['poblacion']) if diseno['poblacion'] else 'infinita'}**"
             )
@@ -230,13 +239,13 @@ def barra_lateral() -> None:
                 f"(Z = {_decimal(diseno['z'], 3)})"
             )
             st.write(f"Error: **±{_decimal(diseno['error'] * 100, 2)} %**")
-            st.metric("Muestra requerida", _entero(diseno["n"]))
+            st.metric(i18n.t("muestra_necesaria"), _entero(diseno["n"]))
 
         resultado = st.session_state.get("resultado")
         if resultado is not None:
             st.divider()
-            st.markdown("**Muestra seleccionada**")
-            st.write(f"Método: **{resultado.metodo}**")
+            st.markdown(f"**{i18n.t('muestra_seleccionada')}**")
+            st.write(f"{i18n.t('metodo')}: **{resultado.metodo}**")
             st.write(f"Registros: **{_entero(resultado.tamano_muestra)}**")
             if resultado.semilla is not None:
                 st.caption(f"Semilla: {resultado.semilla}")
@@ -252,11 +261,8 @@ def barra_lateral() -> None:
 # Pestaña 1: tamaño de muestra
 # ---------------------------------------------------------------------------
 def tab_tamano() -> None:
-    st.subheader("Tamaño de muestra")
-    st.caption(
-        "Determine cuántos registros necesita para estimar una proporción con "
-        "un margen de error y un nivel de confianza dados."
-    )
+    st.subheader(i18n.t("tamano_muestra"))
+    st.caption(i18n.t("tamano_muestra_info"))
 
     diseno_anterior = st.session_state.get("diseno")
 
@@ -264,13 +270,13 @@ def tab_tamano() -> None:
 
     with izq:
         tipo = st.radio(
-            "Tipo de población",
-            ["Finita (N conocida)", "Infinita o desconocida"],
+            i18n.t("tipo_poblacion"),
+            [i18n.t("finita"), i18n.t("infinita")],
             horizontal=True,
             key="t1_tipo",
         )
         poblacion: Optional[int] = None
-        if tipo.startswith("Finita"):
+        if tipo == i18n.t("finita"):
             poblacion = int(
                 st.number_input(
                     "Tamaño de la población (N)",
@@ -284,13 +290,18 @@ def tab_tamano() -> None:
             )
 
         opcion_conf = st.selectbox(
-            "Nivel de confianza",
-            ["90 %", "95 %", "99 %", "Manual (definir Z)"],
+            i18n.t("confianza"),
+            [
+                f"{i18n.t('conf_nivel_90')} %",
+                f"{i18n.t('conf_nivel_95')} %",
+                f"{i18n.t('conf_nivel_99')} %",
+                i18n.t("conf_manual_z"),
+            ],
             index=1,
             key="t1_conf",
         )
         z_manual: Optional[float] = None
-        if opcion_conf.startswith("Manual"):
+        if opcion_conf == i18n.t("conf_manual_z"):
             z_manual = float(
                 st.number_input(
                     "Valor Z (prueba de dos colas)",
@@ -309,7 +320,7 @@ def tab_tamano() -> None:
 
         error_pct = float(
             st.number_input(
-                "Margen de error (e, en %)",
+                i18n.t("error_e"),
                 min_value=0.1,
                 max_value=50.0,
                 value=5.0,
@@ -322,7 +333,7 @@ def tab_tamano() -> None:
 
         p = float(
             st.slider(
-                "Proporción esperada (p)",
+                i18n.t("proporcion_esperada"),
                 0.01,
                 0.99,
                 0.50,
@@ -1291,6 +1302,62 @@ def tab_resultados() -> None:
                 "diferencias deben ser compatibles con el azar."
             )
 
+    # ------------------------------------------------------------------
+    # Estimación puntual y su intervalo de confianza
+    # ------------------------------------------------------------------
+    with st.expander(f"**{i18n.t('estimacion_ic')}**", expanded=False):
+        binarias = [
+            c
+            for c in df.columns
+            if c != "id_marco" and D.es_proporcion_binaria(df[c])
+        ]
+        if not binarias:
+            st.caption(
+                "No se detectó una variable binaria (valores 0/1) en la base; no "
+                "es posible calcular una estimación de proporción."
+            )
+        else:
+            col_est = st.selectbox(
+                i18n.t("variable_binaria"),
+                binarias,
+                key="t5_estimacion",
+                help="Variable binaria usada para estimar la proporción de éxito.",
+            )
+            n_est = int(len(resultado.datos))
+            exitos_est = (
+                int(resultado.datos[col_est].fillna(0).sum())
+                if col_est in resultado.datos.columns
+                else 0
+            )
+            diseno_actual = st.session_state.get("diseno") or {}
+            res_est = E.estimar_proporcion(
+                n=n_est,
+                exitos=exitos_est,
+                poblacion=diseno_actual.get("poblacion"),
+                confianza=float(diseno_actual.get("confianza") or 0.95),
+                z=float(diseno_actual.get("z") or 0.0) or None,
+            )
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric(i18n.t("estimacion_puntual"), _pct(res_est.proporcion))
+            c2.metric(i18n.t("error"), _pct(res_est.error))
+            c3.metric("Límite inferior", _pct(res_est.intervalo_inferior))
+            c4.metric("Límite superior", _pct(res_est.intervalo_superior))
+
+            st.caption(
+                f"Estimación: **{_pct(res_est.proporcion)}** ± **{_pct(res_est.error)}** "
+                f"→ Intervalo de confianza al "
+                f"**{_decimal(res_est.nivel_confianza * 100, 2)} %** "
+                f"(Z = {_decimal(res_est.z, 3)}): "
+                f"**[{_pct(res_est.intervalo_inferior)}, {_pct(res_est.intervalo_superior)}]**"
+            )
+            st.info(
+                "Se presenta la estimación puntual junto con su intervalo de "
+                "confianza para no comunicar una precisión excesiva. El intervalo "
+                "se construye con el margen de error calculado manteniendo el nivel "
+                "de confianza del diseño."
+            )
+
     st.divider()
     st.markdown("#### Descargar la muestra")
 
@@ -1547,12 +1614,12 @@ def main() -> None:
         p6,
     ) = st.tabs(
         [
-            "1 · Tamaño de muestra",
-            "2 · Margen real",
-            "3 · Base de datos",
-            "4 · Selección",
-            "5 · Visualización y descarga",
-            "6 · Metodología",
+            f"1 · {i18n.t('tab_tamano')}",
+            f"2 · {i18n.t('tab_margen_real')}",
+            f"3 · {i18n.t('tab_base')}",
+            f"4 · {i18n.t('tab_seleccion')}",
+            f"5 · {i18n.t('tab_resultados')}",
+            f"6 · {i18n.t('tab_metodologia')}",
         ]
     )
 

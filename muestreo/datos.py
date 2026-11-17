@@ -213,6 +213,18 @@ def es_numerica(serie: pd.Series) -> bool:
     return bool(pd.api.types.is_numeric_dtype(serie))
 
 
+def es_proporcion_binaria(serie: pd.Series) -> bool:
+    """Indica si la serie es una variable binaria (todos los valores 0 o 1).
+
+    Se usan para detectar columnas tipo ``compro_ultimo_mes`` (0/1) u
+    ``booleano`` y preparar la estimación de una proporción.
+    """
+    serie_limpia = serie.dropna()
+    if len(serie_limpia) == 0:
+        return False
+    return all(float(valor) in (0.0, 1.0) for valor in serie_limpia.unique())
+
+
 def columnas_numericas(df: pd.DataFrame) -> list:
     return [c for c in df.columns if es_numerica(df[c])]
 
