@@ -194,11 +194,10 @@ def _nueva_semilla() -> None:
 # ---------------------------------------------------------------------------
 def encabezado() -> None:
     st.markdown(
-        """
+        f"""
         <div class="hero">
-          <h1>📊 Diseño y selección de muestras estadísticas</h1>
-          <p>Calcule el tamaño de muestra, valide el margen de error real y seleccione
-          muestras probabilísticas reproducibles desde su propia base de datos.</p>
+          <h1>📊 {i18n.t('app_titulo')}</h1>
+          <p>{i18n.t('app_subtitulo')}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -279,7 +278,7 @@ def tab_tamano() -> None:
         if tipo == i18n.t("finita"):
             poblacion = int(
                 st.number_input(
-                    "Tamaño de la población (N)",
+                    i18n.t("n_poblacion"),
                     min_value=2,
                     max_value=100_000_000,
                     value=10_000,
@@ -383,15 +382,15 @@ def tab_tamano() -> None:
 
     with der:
         st.metric(
-            "Muestra necesaria (redondeada hacia arriba)",
+            i18n.t("muestra_necesaria"),
             _entero(res.muestra),
             help="El resultado siempre se redondea con ⌈n⌉.",
         )
         c1, c2, c3 = st.columns(3)
-        c1.metric("n (población infinita)", _decimal(res.n_infinita, 1))
-        c2.metric("Factor de corrección", _decimal(res.factor_correccion, 3))
+        c1.metric(i18n.t("n_infinita"), _decimal(res.n_infinita, 1))
+        c2.metric(i18n.t("factor_correccion"), _decimal(res.factor_correccion, 3))
         c3.metric(
-            "Fracción muestral",
+            i18n.t("fraccion_muestral"),
             _pct(res.fraccion_muestral) if res.poblacion else "—",
         )
 
@@ -422,7 +421,7 @@ def tab_tamano() -> None:
                 )
 
         st.button(
-            "Usar este tamaño en la selección →",
+            i18n.t("usar_n"),
             type="primary",
             width="stretch",
             on_click=_usar_n,
@@ -531,7 +530,7 @@ def tab_margen_real() -> None:
         if tipo2.startswith("Finita"):
             poblacion2 = int(
                 st.number_input(
-                    "Tamaño de la población (N)",
+                    i18n.t("n_poblacion"),
                     min_value=2,
                     max_value=100_000_000,
                     value=10_000,
@@ -1602,8 +1601,10 @@ def tab_metodologia() -> None:
 # ---------------------------------------------------------------------------
 def main() -> None:
     iniciar_estado()
-    encabezado()
+    # La barra lateral se renderiza antes del encabezado para que el selector
+    # de idioma ya esté aplicado cuando se construyen los textos traducidos.
     barra_lateral()
+    encabezado()
 
     (
         p1,

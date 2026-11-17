@@ -111,6 +111,22 @@ def test_comparacion_muestra_completa():
     assert comp.logro_muestra == 1.0
 
 
+def test_estimar_proporcion_intervalo():
+    res = E.estimar_proporcion(n=100, exitos=25, poblacion=1000, confianza=0.95)
+    assert res.proporcion == pytest.approx(0.25)
+    assert res.error > 0
+    assert res.intervalo_inferior == pytest.approx(0.25 - res.error)
+    assert res.intervalo_superior == pytest.approx(0.25 + res.error)
+    assert 0 < res.intervalo_inferior < res.proporcion < res.intervalo_superior < 1
+
+
+def test_estimar_proporcion_validaciones():
+    with pytest.raises(ValueError):
+        E.estimar_proporcion(n=0, exitos=0)
+    with pytest.raises(ValueError):
+        E.estimar_proporcion(n=10, exitos=0, z=-1)
+
+
 def test_tabla_sensibilidad_es_monotona():
     tabla = E.tabla_sensibilidad(poblacion=10_000, confianza=0.95)
     muestras = [f["muestra"] for f in tabla]

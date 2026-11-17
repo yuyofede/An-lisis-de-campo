@@ -222,7 +222,12 @@ def es_proporcion_binaria(serie: pd.Series) -> bool:
     serie_limpia = serie.dropna()
     if len(serie_limpia) == 0:
         return False
-    return all(float(valor) in (0.0, 1.0) for valor in serie_limpia.unique())
+    try:
+        valores = [float(valor) for valor in serie_limpia.unique()]
+    except (ValueError, TypeError):
+        # Valores no numéricos (p. ej. identificadores) no son proporciones.
+        return False
+    return all(valor in (0.0, 1.0) for valor in valores)
 
 
 def columnas_numericas(df: pd.DataFrame) -> list:

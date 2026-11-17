@@ -116,3 +116,25 @@ def test_n_de_seleccion_sigue_al_diseno():
     assert at.session_state["n_seleccion"] != n_inicial
 
 
+def test_cambio_de_idioma_es_en_no():
+    at = AppTest.from_file("app.py", default_timeout=90)
+    at.run()
+    assert not at.exception, at.exception
+
+    selector = next(s for s in at.selectbox if s.label == "Idioma")
+    selector.set_value("en").run()
+    assert not at.exception, at.exception
+    texto_app = " ".join(m.value for m in at.markdown)
+    assert any(
+        "Sample size and statistical sampling design" in m.value for m in at.markdown
+    )
+
+    selector = next(s for s in at.selectbox if s.label == "Idioma")
+    selector.set_value("no").run()
+    assert not at.exception, at.exception
+    texto_app = " ".join(m.value for m in at.markdown)
+    assert any(
+        "Størrelsesdesign og statistisk utvelsning" in m.value for m in at.markdown
+    )
+
+

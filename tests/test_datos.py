@@ -113,6 +113,14 @@ def test_columnas_categoricas_y_numericas():
     assert D.columnas_numericas(df) == ["edad"]
 
 
+def test_es_proporcion_binaria():
+    assert D.es_proporcion_binaria(pd.Series([0, 1, 1, 0]))
+    assert D.es_proporcion_binaria(pd.Series([True, False, True]))
+    assert not D.es_proporcion_binaria(pd.Series(["a", "b"]))
+    assert not D.es_proporcion_binaria(pd.Series([0, 2, 1]))
+    assert not D.es_proporcion_binaria(pd.Series([None, None]))
+
+
 def test_formato_no_soportado():
     with pytest.raises(ValueError):
         D.leer_archivo(b"contenido", "archivo.pdf")
