@@ -331,3 +331,84 @@ def tabla_comparacion(
             ],
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Diagnóstico de regresión
+# ---------------------------------------------------------------------------
+def grafico_regresion(
+    observado: pd.Series,
+    ajustado: pd.Series,
+    variable_y: str = "",
+) -> go.Figure:
+    """Dispersión de valores observados frente a los ajustados por el modelo.
+
+    La línea diagonal representa el ajuste perfecto: cuanto más cerca estén los
+    puntos, mejor reproduce el modelo los valores observados.
+    """
+    obs = pd.to_numeric(observado, errors="coerce")
+    aju = pd.to_numeric(ajustado, errors="coerce")
+    datos = pd.DataFrame({"observado": obs, "ajustado": aju}).dropna()
+
+    fig = go.Figure()
+    if not datos.empty:
+        minimo = float(min(datos["observado"].min(), datos["ajustado"].min()))
+        maximo = float(max(datos["observado"].max(), datos["ajustado"].max()))
+        fig.add_trace(
+            go.Scatter(
+                x=[minimo, maximo],
+                y=[minimo, maximo],
+                mode="lines",
+                name="Ajuste perfecto",
+                line=dict(color=COLOR_POBLACION, dash="dash", width=1.5),
+                hoverinfo="skip",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=datos["observado"],
+                y=datos["ajustado"],
+                mode="markers",
+                name="Observado vs. ajustado",
+                marker=dict(size=7, color=COLOR_MUESTRA, opacity=0.65),
+                hovertemplate=(
+                    "observado = %{x:.4g}<br>ajustado = %{y:.4g}<extra></extra>"
+                ),
+            )
+        )
+
+    _layout(fig, "Valores observados frente a los ajustados")
+    fig.update_xaxes(title=variable_y or "Observado")
+    fig.update_yaxes(title="Ajustado por el modelo")
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Comparación de grupos (ANOVA)
+# ---------------------------------------------------------------------------
+def grafico_anova(
+    datos: pd.DataFrame,
+    variable_y: str,
+    variable_grupo: str,
+) -> go.Figure:
+    """Diagrama de cajas de la variable respuesta por grupo."""
+    if variable_y not in datos.columns or variable_grupo not in datos.columns:
+        raise ValueError("Las columnas indicadas no existen en los datos.")
+
+    limpio = datos[[variable_y, variable_grupo]].copy()
+    limpio[variable_y] = pd.to_numeric(limpio[variable_y], errors="coerce")
+    limpio = limpio.dropna()
+
+    fig = px.box(
+        limpio,
+        x=variable_grupo,
+        y=variable_y,
+        color=variable_grupo,
+        points="outliers",
+        template=PLANTILLA,
+    )
+    fig.update_layout(showlegend=False)
+    _layout(fig, f"{variable_y} según {variable_grupo}", alto=420)
+    fig.update_xaxes(title=variable_grupo)
+    fig.update_yaxes(title=variable_y)
+    return fig

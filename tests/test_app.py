@@ -116,6 +116,31 @@ def test_n_de_seleccion_sigue_al_diseno():
     assert at.session_state["n_seleccion"] != n_inicial
 
 
+def test_pestana_analisis_con_datos_de_ejemplo():
+    at = AppTest.from_file("app.py", default_timeout=90)
+    at.run()
+    assert not at.exception, at.exception
+
+    _boton(at, "Cargar datos de ejemplo").click().run()
+    assert not at.exception, at.exception
+
+    etiquetas = [m.label for m in at.metric]
+    assert "R²" in etiquetas
+    assert "η² (tamaño del efecto)" in etiquetas
+
+    # Los selectores del módulo usan variables de la base cargada.
+    assert any(s.label == "Variable dependiente (Y)" for s in at.selectbox)
+    assert any(s.label == "Factor o grupo" for s in at.selectbox)
+
+    # El módulo permite analizar también la muestra ya seleccionada.
+    _boton(at, "Seleccionar muestra").click().run()
+    assert not at.exception, at.exception
+    alcance = next(r for r in at.radio if r.label == "Datos a analizar")
+    alcance.set_value("muestra").run()
+    assert not at.exception, at.exception
+    assert "R²" in [m.label for m in at.metric]
+
+
 def test_cambio_de_idioma_es_en_no():
     at = AppTest.from_file("app.py", default_timeout=90)
     at.run()

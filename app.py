@@ -17,6 +17,7 @@ import pandas as pd
 import streamlit as st
 
 from muestreo import datos as D
+from muestreo import analisis as A
 from muestreo import estadistica as E
 from muestreo import graficos as G
 from muestreo import i18n
@@ -81,6 +82,12 @@ CLAVES_DEPENDIENTES_BASE = [
     "t5_variable",
     "t5_nombre",
     "t5_estimacion",
+    "t7_alcance",
+    "t7_desc_cols",
+    "t7_reg_y",
+    "t7_reg_x",
+    "t7_anova_y",
+    "t7_anova_grupo",
 ]
 
 
@@ -1442,7 +1449,251 @@ def tab_resultados() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Pestaña 6: metodología
+# Pestaña 6: análisis estadístico
+# ---------------------------------------------------------------------------
+def _variable_respuesta_defecto(df: pd.DataFrame, numericas: list) -> str:
+    """Elige una variable numérica con variación real como respuesta inicial."""
+    no_binarias = [c for c in numericas if df[c].nunique(dropna=True) > 2]
+    candidatas = no_binarias or numericas
+    return max(candidatas, key=lambda c: int(df[c].nunique(dropna=True)))
+
+
+def _p_valor_texto(valor: float) -> str:
+    if pd.isna(valor):
+        return "—"
+    if valor < 0.001:
+        return "< 0,001"
+    return _decimal(valor, 4)
+
+
+def tab_analisis() -> None:
+    st.subheader(i18n.t("analisis_titulo"))
+    st.caption(i18n.t("analisis_info"))
+
+    df = st.session_state.get("df")
+    if df is None:
+        st.info(i18n.t("sin_base"))
+        return
+
+    resultado = st.session_state.get("resultado")
+    opciones_alcance = ["base"] + (["muestra"] if resultado is not None else [])
+    alcance = st.radio(
+        i18n.t("analisis_alcance"),
+        opciones_alcance,
+        format_func=lambda codigo: (
+            i18n.t("analisis_base_completa")
+            if codigo == "base"
+            else i18n.t("analisis_muestra")
+        ),
+        horizontal=True,
+        key="t7_alcance",
+    )
+    fuente = df if alcance == "base" or resultado is None else resultado.datos
+
+    clasificacion = A.variables_analizables(fuente)
+    numericas = clasificacion["numericas"]
+    categoricas = clasificacion["categoricas"]
+
+    if not numericas:
+        st.warning(i18n.t("analisis_sin_numericas"))
+        return
+
+    p_desc, p_reg, p_anova = st.tabs(
+        [
+            i18n.t("analisis_desc"),
+            i18n.t("analisis_reg"),
+            i18n.t("analisis_anova"),
+        ]
+    )
+
+    # ------------------------------------------------------------------
+    # Estadística descriptiva
+    # ------------------------------------------------------------------
+    with p_desc:
+        st.markdown(f"**{i18n.t('analisis_desc')}**")
+        st.caption(i18n.t("analisis_desc_info"))
+
+        seleccion = st.multiselect(
+            i18n.t("analisis_desc_cols"),
+            numericas,
+            default=numericas[: min(6, len(numericas))],
+            key="t7_desc_cols",
+        )
+        if not seleccion:
+            st.info(i18n.t("analisis_desc_sin_cols"))
+        else:
+            tabla = A.estadistica_descriptiva(fuente, seleccion).rename(
+                columns={
+                    "columna": i18n.t("analisis_columna"),
+                    "n": "n",
+                    "faltantes": i18n.t("analisis_faltantes"),
+                    "media": i18n.t("analisis_media"),
+                    "desviacion": i18n.t("analisis_desviacion"),
+                    "minimo": i18n.t("analisis_minimo"),
+                    "q1": "Q1",
+                    "mediana": i18n.t("analisis_mediana"),
+                    "q3": "Q3",
+                    "maximo": i18n.t("analisis_maximo"),
+                    "asimetria": i18n.t("analisis_asimetria"),
+                    "curtosis": i18n.t("analisis_curtosis"),
+                    "cv": i18n.t("analisis_cv"),
+                }
+            )
+            st.dataframe(tabla.round(4), hide_index=True, width="stretch")
+            st.download_button(
+                i18n.t("analisis_descargar"),
+                data=D.a_csv_bytes(tabla),
+                file_name=f"estadistica_descriptiva_{alcance}.csv",
+                mime="text/csv",
+            )
+
+    # ------------------------------------------------------------------
+    # Regresión lineal múltiple
+    # ------------------------------------------------------------------
+    with p_reg:
+        st.markdown(f"**{i18n.t('analisis_reg')}**")
+        st.caption(i18n.t("analisis_reg_info"))
+
+        y_defecto = _variable_respuesta_defecto(fuente, numericas)
+        variable_y = st.selectbox(
+            i18n.t("analisis_reg_y"),
+            numericas,
+            index=numericas.index(y_defecto),
+            key="t7_reg_y",
+        )
+
+        opciones_x = [c for c in numericas + categoricas if c != variable_y]
+        por_defecto_x = [c for c in numericas if c != variable_y][:2]
+        predictores = st.multiselect(
+            i18n.t("analisis_reg_x"),
+            opciones_x,
+            default=por_defecto_x,
+            key="t7_reg_x",
+        )
+
+        if not predictores:
+            st.info(i18n.t("analisis_reg_sin_x"))
+        else:
+            try:
+                res_reg = A.regresion_lineal(fuente, variable_y, predictores)
+            except ValueError as exc:
+                st.warning(str(exc))
+            else:
+                st.markdown(f"**{i18n.t('analisis_reg_resultados')}**")
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric(i18n.t("analisis_r2"), _decimal(res_reg.r2, 3))
+                c2.metric(i18n.t("analisis_r2_ajustado"), _decimal(res_reg.r2_ajustado, 3))
+                c3.metric(i18n.t("analisis_rmse"), _decimal(res_reg.rmse, 3))
+                c4.metric(i18n.t("analisis_n"), _entero(res_reg.n))
+
+                c5, c6 = st.columns(2)
+                c5.metric(i18n.t("analisis_f"), _decimal(res_reg.estadistico_f, 3))
+                c6.metric(i18n.t("analisis_p"), _p_valor_texto(res_reg.p_valor))
+
+                st.caption(
+                    f"**{i18n.t('analisis_ecuacion')}:** `{res_reg.ecuacion}`"
+                )
+
+                coeficientes = res_reg.coeficientes.rename(
+                    columns={
+                        "variable": i18n.t("analisis_columna"),
+                        "coeficiente": i18n.t("analisis_coeficiente"),
+                        "error_estandar": i18n.t("analisis_error_estandar"),
+                        "t": "t",
+                        "p_valor": i18n.t("analisis_p"),
+                        "ic_inferior": i18n.t("analisis_ic_inferior"),
+                        "ic_superior": i18n.t("analisis_ic_superior"),
+                    }
+                )
+                st.dataframe(
+                    coeficientes.round(5), hide_index=True, width="stretch"
+                )
+                st.plotly_chart(
+                    G.grafico_regresion(
+                        res_reg.observado, res_reg.ajustado, variable_y
+                    ),
+                    use_container_width=True,
+                )
+
+    # ------------------------------------------------------------------
+    # ANOVA de un factor
+    # ------------------------------------------------------------------
+    with p_anova:
+        st.markdown(f"**{i18n.t('analisis_anova')}**")
+        st.caption(i18n.t("analisis_anova_info"))
+
+        if not categoricas:
+            st.info(i18n.t("analisis_anova_sin_grupo"))
+        else:
+            y_defecto = _variable_respuesta_defecto(fuente, numericas)
+            variable_y_anova = st.selectbox(
+                i18n.t("analisis_anova_y"),
+                numericas,
+                index=numericas.index(y_defecto),
+                key="t7_anova_y",
+            )
+            grupo = st.selectbox(
+                i18n.t("analisis_anova_grupo"),
+                categoricas,
+                key="t7_anova_grupo",
+            )
+
+            try:
+                res_anova = A.anova_una_via(fuente, variable_y_anova, grupo)
+            except ValueError as exc:
+                st.warning(str(exc))
+            else:
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric(i18n.t("analisis_f"), _decimal(res_anova.estadistico_f, 3))
+                c2.metric(i18n.t("analisis_p"), _p_valor_texto(res_anova.p_valor))
+                c3.metric(i18n.t("analisis_eta2"), _decimal(res_anova.eta2, 3))
+                c4.metric(i18n.t("analisis_grupos"), _entero(res_anova.grupos))
+
+                if res_anova.significativo:
+                    st.success(i18n.t("analisis_significativo"))
+                else:
+                    st.info(i18n.t("analisis_no_significativo"))
+
+                mapa_fuente = {
+                    "entre": i18n.t("analisis_entre"),
+                    "dentro": i18n.t("analisis_dentro"),
+                    "total": i18n.t("analisis_total"),
+                }
+                tabla_anova = res_anova.tabla.copy()
+                tabla_anova["fuente"] = (
+                    tabla_anova["fuente"].map(mapa_fuente).fillna(tabla_anova["fuente"])
+                )
+                tabla_anova = tabla_anova.rename(
+                    columns={
+                        "fuente": i18n.t("analisis_fuente"),
+                        "suma_cuadrados": i18n.t("analisis_suma_cuadrados"),
+                        "gl": i18n.t("analisis_gl"),
+                        "media_cuadratica": i18n.t("analisis_media_cuadratica"),
+                        "f": "F",
+                        "p_valor": i18n.t("analisis_p"),
+                    }
+                )
+                st.markdown(f"**{i18n.t('analisis_anova_tabla')}**")
+                st.dataframe(tabla_anova.round(5), hide_index=True, width="stretch")
+
+                medias = res_anova.medias.rename(
+                    columns={
+                        "grupo": i18n.t("analisis_grupo"),
+                        "n": "n",
+                        "media": i18n.t("analisis_media"),
+                        "desviacion": i18n.t("analisis_desviacion"),
+                    }
+                )
+                st.markdown(f"**{i18n.t('analisis_medias')}**")
+                st.dataframe(medias.round(4), hide_index=True, width="stretch")
+                st.plotly_chart(
+                    G.grafico_anova(fuente, variable_y_anova, grupo),
+                    use_container_width=True,
+                )
+
+
+# ---------------------------------------------------------------------------
+# Pestaña 7: metodología
 # ---------------------------------------------------------------------------
 def tab_metodologia() -> None:
     st.subheader("Metodología y ayuda")
@@ -1517,6 +1768,41 @@ def tab_metodologia() -> None:
             """
         )
 
+    with st.expander("Análisis estadístico: descriptiva, regresión y ANOVA"):
+        st.markdown(
+            """
+            **Estadística descriptiva.** Para cada variable numérica se informan
+            `n` válido, faltantes, media, desviación estándar muestral, mínimo,
+            cuartiles, mediana, máximo, asimetría, curtosis y coeficiente de
+            variación (`CV = s / |x̄|`).
+
+            **Regresión lineal múltiple (OLS).** Se estima
+
+            ```
+            y = β₀ + β₁·x₁ + … + β_k·x_k + ε
+            ```
+
+            minimizando la suma de cuadrados de los residuos. Las variables
+            categóricas se codifican con variables ficticias (se omite la primera
+            categoría). Se informan `R²`, `R²` ajustado, `RMSE`, el estadístico
+            `F` global y, por coeficiente, error estándar, `t`, `p-valor` e
+            intervalo de confianza al 95 %. Un `p-valor < 0,05` sugiere una
+            asociación no nula, pero no implica causalidad.
+
+            **ANOVA de un factor.** Contrasta `H₀: μ₁ = μ₂ = … = μ_k` frente a
+            la alternativa de que al menos una media difiere:
+
+            ```
+            F = MS_entre / MS_dentro        η² = SS_entre / SS_total
+            ```
+
+            `η²` cuantifica la proporción de variabilidad explicada por el grupo
+            (tamaño del efecto). El ANOVA supone independencia, normalidad
+            aproximada y homogeneidad de varianzas; con grupos muy desiguales o
+            tamaños pequeños conviene revisar esos supuestos antes de concluir.
+            """
+        )
+
     with st.expander("Supuestos, límites y buenas prácticas"):
         st.markdown(
             """
@@ -1566,6 +1852,8 @@ def tab_metodologia() -> None:
             "streamlit>=1.49,<2.0\n"
             "pandas>=2.0,<3.0\n"
             "numpy>=1.24,<3.0\n"
+            "scipy>=1.10,<1.14\n"
+            "statsmodels>=0.14,<0.15\n"
             "openpyxl>=3.1,<4.0\n"
             "plotly>=5.18,<8.0",
             language="text",
@@ -1613,6 +1901,7 @@ def main() -> None:
         p4,
         p5,
         p6,
+        p7,
     ) = st.tabs(
         [
             f"1 · {i18n.t('tab_tamano')}",
@@ -1620,7 +1909,8 @@ def main() -> None:
             f"3 · {i18n.t('tab_base')}",
             f"4 · {i18n.t('tab_seleccion')}",
             f"5 · {i18n.t('tab_resultados')}",
-            f"6 · {i18n.t('tab_metodologia')}",
+            f"6 · {i18n.t('tab_analisis')}",
+            f"7 · {i18n.t('tab_metodologia')}",
         ]
     )
 
@@ -1635,6 +1925,8 @@ def main() -> None:
     with p5:
         tab_resultados()
     with p6:
+        tab_analisis()
+    with p7:
         tab_metodologia()
 
 

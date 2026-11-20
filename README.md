@@ -45,13 +45,36 @@ registran las posiciones/parámetros utilizados.
   *Resumen*, hoja *Muestra* y hojas adicionales de afijación o conglomerados.
 - Cada fila conserva `id_marco`, el identificador de su posición en el marco.
 
+### 5. Análisis estadístico
+Módulo independiente (`muestreo/analisis.py`) que trabaja sobre la base
+completa, sin depender de la muestra seleccionada:
+
+- **Estadística descriptiva** (pandas): n válido, faltantes, media, desviación
+  estándar, mínimo, cuartiles, mediana, máximo, asimetría, curtosis y
+  coeficiente de variación para las variables numéricas elegidas.
+- **Regresión lineal múltiple** (statsmodels): coeficientes con error estándar,
+  `t`, `p` e intervalo de confianza al 95 %, `R²`, `R²` ajustado, `RMSE`,
+  estadístico `F`, ecuación estimada y gráfico observado vs. ajustado. Admite
+  predictores numéricos y categóricos (codificados con variables ficticias).
+- **ANOVA de un factor** (SciPy): tabla completa (entre/dentro/total), `F`,
+  `p-valor`, `η²` como tamaño del efecto, medias por grupo y diagrama de cajas.
+
+Cada análisis valida las variables, informa valores faltantes y muestra
+mensajes claros cuando no hay datos suficientes. El alcance puede ser la
+**base completa** o la **muestra seleccionada**.
+
+### 6. Interfaz multilingüe
+Selector de idioma en la barra lateral con **español**, **inglés** y **noruego**.
+Las etiquetas de la interfaz y de las tablas se resuelven desde
+`muestreo/i18n.py`.
+
 ---
 
 ## Estructura del proyecto
 
 ```
 muestreo_estadistico/
-├── app.py                      # Interfaz Streamlit (6 pestañas)
+├── app.py                      # Interfaz Streamlit (7 pestañas)
 ├── requirements.txt            # Dependencias de ejecución
 ├── requirements-dev.txt        # Dependencias de pruebas
 ├── pytest.ini
@@ -62,12 +85,16 @@ muestreo_estadistico/
 │   ├── estadistica.py          # Fórmulas: n, margen de error, confianza
 │   ├── muestreo.py             # Algoritmos de los 4 métodos
 │   ├── datos.py                # Lectura CSV/Excel, datos de ejemplo, exportación
+│   ├── analisis.py             # Descriptiva, regresión lineal y ANOVA
+│   ├── i18n.py                 # Traducciones español / inglés / noruego
 │   └── graficos.py             # Figuras Plotly y tablas comparativas
 ├── tests/
 │   ├── test_estadistica.py
 │   ├── test_muestreo.py
 │   ├── test_datos.py
+│   ├── test_analisis.py
 │   ├── test_graficos.py
+│   ├── test_i18n.py
 │   └── test_app.py             # Prueba de humo de la interfaz (AppTest)
 └── datos_ejemplo/
     └── clientes_encuesta.csv   # 3.000 registros sintéticos para probar
@@ -122,6 +149,9 @@ La aplicación se abre en `http://localhost:8501`. Para detenerla: `Ctrl + C`.
    propios del método. Pulse **“Seleccionar muestra”**.
 5. **Visualización y descarga.** Compare la distribución de la muestra con la
    población y descargue el CSV o el Excel con el resumen metodológico.
+6. **Análisis estadístico.** Describa variables numéricas, ajuste una regresión
+   lineal múltiple o compare medias entre grupos con ANOVA. El idioma de la
+   interfaz se elige en la barra lateral.
 
 ### Formato del archivo
 
@@ -180,6 +210,34 @@ e = z · √(p·q / n) · √((N − n)/(N − 1))    (población finita)
 - Los datos se procesan en memoria durante la sesión; no se envían a servicios
   externos.
 
+### Análisis estadístico
+
+**Regresión lineal múltiple (OLS):**
+
+```
+y = β₀ + β₁·x₁ + β₂·x₂ + … + ε
+```
+
+- Se estima por mínimos cuadrados ordinarios con `statsmodels`.
+- Las variables categóricas se codifican como variables ficticias eliminando la
+  primera categoría.
+- Se informan `R²`, `R²` ajustado, `RMSE`, `F` global y, para cada coeficiente,
+  error estándar, `t`, `p-valor` e intervalo de confianza al 95 %.
+
+**ANOVA de un factor:**
+
+```
+F = MS_entre / MS_dentro        η² = SS_entre / SS_total
+```
+
+- Compara la media de una variable numérica entre dos o más grupos.
+- Requiere al menos dos grupos y más observaciones que grupos.
+- Un `p-valor < 0,05` indica diferencias estadísticamente significativas; `η²`
+  cuantifica el tamaño del efecto.
+
+> La significación estadística no implica relevancia práctica: interprete los
+> resultados junto con el diseño del estudio y el tamaño del efecto.
+
 ---
 
 ## Pruebas
@@ -234,5 +292,5 @@ Alternativa recomendada para Streamlit: **Streamlit Community Cloud** (`share.st
 
 ## Tecnologías
 
-Python 3.9+ · Streamlit · pandas · NumPy · Plotly · openpyxl · pytest.
+Python 3.9+ · Streamlit · pandas · NumPy · SciPy · statsmodels · Plotly · openpyxl · pytest.
 # An-lisis-de-campo

@@ -11,8 +11,10 @@ datos
     Lectura de CSV/Excel, datos de ejemplo y exportación.
 graficos
     Figuras de Plotly para comparar población y muestra.
+analisis
+    Estadística descriptiva, regresión lineal múltiple y ANOVA de un factor.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
-__all__ = ["estadistica", "muestreo", "datos", "graficos"]
+__all__ = ["estadistica", "muestreo", "datos", "graficos", "analisis"]
